@@ -1,0 +1,58 @@
+media:
+  input: public/images
+  output: /images
+
+content:
+  - name: posts
+    label: 文章
+    type: collection
+    path: src/content/posts
+    format: frontmatter
+    filename:
+      template: "{year}-{month}-{day}-{primary}.md"
+      field: create
+    fields:
+      - name: title
+        label: 标题
+        type: string
+        required: true
+      - name: published
+        label: 发布日期
+        type: date
+        required: true
+      - name: description
+        label: 摘要（列表页显示的那句话）
+        type: text
+        required: false
+      - name: image
+        label: 封面图（可不传）
+        type: image
+        required: false
+      - name: tags
+        label: 标签
+        type: list
+        required: false
+      - name: category
+        label: 分类
+        type: string
+        default: 技术
+      - name: draft
+        label: 草稿（勾上就先不发布）
+        type: boolean
+        default: false
+      - name: lang
+        label: 语言
+        type: string
+        default: zh_CN
+      - name: body
+        label: 正文
+        type: rich-text
+
+  - name: about
+    label: 关于页
+    type: file
+    path: src/content/spec/about.md
+    fields:
+      - name: body
+        label: 内容
+        type: rich-text
