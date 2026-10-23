@@ -11,42 +11,56 @@ content:
     filename:
       template: "{year}-{month}-{day}-{primary}.md"
       field: create
+    view:
+      fields: [title, published, draft, category]
+      primary: title
+      sort: [published, title]
+      search: [title, description, tags]
+      default:
+        sort: published
+        order: desc
     fields:
       - name: title
         label: 标题
         type: string
         required: true
+        description: 显示在列表页和浏览器标签上，也是文件名的默认值
       - name: published
         label: 发布日期
         type: date
         required: true
+        description: 列表按这个日期倒序排列，写成今天就是置顶
       - name: description
-        label: 摘要（列表页显示的那句话）
+        label: 摘要
         type: text
-        required: false
+        description: 列表页标题下面那句话，30 字左右最合适，可以不填
       - name: image
-        label: 封面图（可不传）
+        label: 封面图
         type: image
-        required: false
+        description: 不传的话文章顶部不会出现大图
       - name: tags
         label: 标签
         type: list
-        required: false
+        description: 输入后回车添加，一般 2-3 个就够
       - name: category
         label: 分类
         type: string
         default: 技术
+        description: 填「技术」或「生活」，侧边栏会按它归类
       - name: draft
-        label: 草稿（勾上就先不发布）
+        label: 草稿
         type: boolean
         default: false
+        description: 打开后不会发布到网站，取消才上线
       - name: lang
         label: 语言
         type: string
         default: zh_CN
+        hidden: true
       - name: body
         label: 正文
         type: rich-text
+        description: 支持 Markdown，可以直接粘贴 Obsidian 里的内容
 
   - name: about
     label: 关于页
@@ -57,6 +71,7 @@ content:
       - name: body
         label: 内容
         type: rich-text
+        description: 只写正文，不要手动加 --- 分隔线，那两行由系统自动管理
 
   - name: settings
     label: 站点设置
@@ -64,24 +79,30 @@ content:
     path: src/site-settings.json
     fields:
       - name: title
-        label: 站点标题（浏览器标签和页头显示）
+        label: 站点标题
         type: string
         required: true
+        description: 显示在浏览器标签、页头左侧和首页
       - name: subtitle
         label: 副标题
         type: string
+        description: 首页标题下面那一行
       - name: authorName
         label: 你的名字
         type: string
+        description: 左侧头像卡片上的名字，也是文章作者
       - name: authorBio
-        label: 简介（头像下面那两行）
+        label: 简介
         type: text
+        description: 头像下面那两行
       - name: avatar
         label: 头像
         type: image
       - name: github
-        label: GitHub 主页地址
+        label: GitHub 主页
         type: string
+        description: 头像下方的 GitHub 图标指向这里
       - name: email
-        label: 邮箱（填了会出现在头像下方）
+        label: 邮箱
         type: string
+        description: 头像下方的邮件图标指向这里
