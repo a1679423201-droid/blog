@@ -7,7 +7,7 @@ content:
     label: 文章
     type: collection
     path: src/content/posts
-    format: frontmatter
+    format: yaml-frontmatter
     filename:
       template: "{year}-{month}-{day}-{primary}.md"
       field: create
