@@ -52,6 +52,7 @@ content:
     label: 关于页
     type: file
     path: src/content/spec/about.md
+    format: yaml-frontmatter
     fields:
       - name: body
         label: 内容
