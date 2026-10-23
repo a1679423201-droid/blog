@@ -56,3 +56,31 @@ content:
       - name: body
         label: 内容
         type: rich-text
+
+  - name: settings
+    label: 站点设置
+    type: file
+    path: src/site-settings.json
+    fields:
+      - name: title
+        label: 站点标题（浏览器标签和页头显示）
+        type: string
+        required: true
+      - name: subtitle
+        label: 副标题
+        type: string
+      - name: authorName
+        label: 你的名字
+        type: string
+      - name: authorBio
+        label: 简介（头像下面那两行）
+        type: text
+      - name: avatar
+        label: 头像
+        type: image
+      - name: github
+        label: GitHub 主页地址
+        type: string
+      - name: email
+        label: 邮箱（填了会出现在头像下方）
+        type: string

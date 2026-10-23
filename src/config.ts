@@ -6,10 +6,11 @@ import type {
 	SiteConfig,
 } from "./types/config";
 import { LinkPreset } from "./types/config";
+import siteSettings from "./site-settings.json";
 
 export const siteConfig: SiteConfig = {
-	title: "杨美端的博客",
-	subtitle: "记录 Android / AOSP 与日常折腾",
+	title: siteSettings.title,
+	subtitle: siteSettings.subtitle,
 	lang: "zh_CN", // Language code, e.g. 'en', 'zh_CN', 'ja', etc.
 	themeColor: {
 		hue: 250, // Default hue for the theme color, from 0 to 360. e.g. red: 0, teal: 200, cyan: 250, pink: 345
@@ -46,26 +47,26 @@ export const navBarConfig: NavBarConfig = {
 		LinkPreset.About,
 		{
 			name: "GitHub",
-			url: "https://github.com/", // Internal links should not include the base path, as it is automatically added
+			url: siteSettings.github, // Internal links should not include the base path, as it is automatically added
 			external: true, // Show an external link icon and will open in a new tab
 		},
 	],
 };
 
 export const profileConfig: ProfileConfig = {
-	avatar: "assets/images/demo-avatar.png", // Relative to the /src directory. Relative to the /public directory if it starts with '/'
-	name: "杨美端",
-	bio: "Android 系统工程师，记录踩过的坑和一些日常。",
+	avatar: siteSettings.avatar, // Relative to the /src directory. Relative to the /public directory if it starts with '/'
+	name: siteSettings.authorName,
+	bio: siteSettings.authorBio,
 	links: [
 		{
 			name: "GitHub",
 			icon: "fa6-brands:github",
-			url: "https://github.com/",
+			url: siteSettings.github,
 		},
 		{
 			name: "Email",
 			icon: "fa6-solid:envelope",
-			url: "mailto:you@example.com",
+			url: `mailto:${siteSettings.email}`,
 		},
 	],
 };
