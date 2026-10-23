@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>极限盲子的博客</title><description>记录 Android / AOSP 与日常折腾</description><link>http://170.106.150.172/</link><language>zh_CN</language><item><title>这个博客终于跑起来了</title><link>http://170.106.150.172/posts/hello-blog/</link><guid isPermaLink="true">http://170.106.150.172/posts/hello-blog/</guid><description>从一台闲置的云服务器到能自动发布的博客，记录一下这套东西是怎么搭起来的。</description><pubDate>Thu, 22 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;折腾了一晚上，这个博客总算上线了。&lt;/p&gt;
+&lt;h2&gt;它是怎么跑起来的&lt;/h2&gt;
+&lt;p&gt;内容用 Markdown 写，&lt;a href=&quot;https://astro.build/&quot;&gt;Astro&lt;/a&gt; 构建成纯静态页面，放在一台 2 核 2G 的云服务器上，nginx 容器托管。&lt;/p&gt;
+&lt;p&gt;平常写文章不用碰终端：打开网页后台，填标题、选标签、传封面图，正文用可视化编辑器写，点保存之后一分钟左右网站就更新了。&lt;/p&gt;
+&lt;p&gt;后台保存的内容会提交到 GitHub，GitHub Actions 自动构建，服务器每分钟拉取一次最新的构建产物。整条链路没有任何需要手动维护的密钥。&lt;/p&gt;
+&lt;h2&gt;后面打算写什么&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Android Framework 和 AOSP 编译、调试中踩的坑&lt;/li&gt;
+&lt;li&gt;Launcher、SystemUI 相关的排查记录&lt;/li&gt;
+&lt;li&gt;SELinux 权限问题的定位思路&lt;/li&gt;
+&lt;li&gt;偶尔写点生活&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;希望这次能坚持写下去。&lt;/p&gt;
+</content:encoded></item><item><title>AOSP 编译提速：ccache 到底值不值得开</title><link>http://170.106.150.172/posts/aosp-build-speedup/</link><guid isPermaLink="true">http://170.106.150.172/posts/aosp-build-speedup/</guid><description>从 42 分钟到 11 分钟，记录一次把 AOSP 增量编译压下来的过程，以及 ccache 命中率上不去的几个坑。</description><pubDate>Sun, 18 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;公司给配的编译机是 16 核 64G，第一次全量编译 &lt;code&gt;aosp&lt;/code&gt; 花了 42 分钟。后来把 ccache 和 ninja 的参数调明白，日常改一个模块的增量编译稳定在 11 分钟左右。这篇记录一下过程。&lt;/p&gt;
+&lt;h2&gt;先说结论&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;配置&lt;/th&gt;
+&lt;th&gt;全量编译&lt;/th&gt;
+&lt;th&gt;改一个 Java 文件&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;默认&lt;/td&gt;
+&lt;td&gt;42 min&lt;/td&gt;
+&lt;td&gt;6 min&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;只开 ccache&lt;/td&gt;
+&lt;td&gt;39 min&lt;/td&gt;
+&lt;td&gt;3 min&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;ccache + ninja 调参&lt;/td&gt;
+&lt;td&gt;38 min&lt;/td&gt;
+&lt;td&gt;1.5 min&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;真正有效的是 &lt;strong&gt;ninja 的并行策略&lt;/strong&gt;，ccache 主要在「切分支、clean 之后重编」这类场景下救命。&lt;/p&gt;
+&lt;h2&gt;ccache 的配置&lt;/h2&gt;
+&lt;p&gt;环境变量写进 &lt;code&gt;~/.bashrc&lt;/code&gt;，注意 &lt;code&gt;CCACHE_DIR&lt;/code&gt; 要放在大容量盘上，编译产物动辄几十 G。&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;export USE_CCACHE=1
+export CCACHE_DIR=/data/ccache
+export CCACHE_EXEC=/usr/bin/ccache
+export CCACHE_COMPRESS=1
+export CCACHE_COMPRESSLEVEL=6
+export CCACHE_MAXSIZE=80G
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;然后用 &lt;code&gt;ccache -s&lt;/code&gt; 看命中率：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;ccache -s
+# cache hit (direct)                 48213
+# cache hit (preprocessed)            1932
+# cache miss                         12044
+# hit rate                           80.17 %
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;命中率低于 60% 就基本白开了，常见原因是 &lt;code&gt;CCACHE_BASEDIR&lt;/code&gt; 没设，&lt;code&gt;repo sync&lt;/code&gt; 到新目录后路径全变，缓存直接失效：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;export CCACHE_BASEDIR=&quot;$PWD&quot;
+export CCACHE_NOHASHDIR=true
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2&gt;ninja 参数&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;-j&lt;/code&gt; 不是越大越好。16 核机器上 &lt;code&gt;-j16&lt;/code&gt; 和 &lt;code&gt;-j32&lt;/code&gt; 的差距很小，但内存峰值能差一倍，&lt;code&gt;d8&lt;/code&gt; 阶段容易 OOM：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;# 别用这个，16G 的机器会死
+m -j32
+
+# 留给 link 阶段一点内存
+m -j16 dist
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;如果只是想快速验证一个模块能不能编过，别 &lt;code&gt;m&lt;/code&gt; 全量，用 &lt;code&gt;mm&lt;/code&gt; 或者直接指定模块名：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;cd packages/apps/Launcher3
+mm -j16
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2&gt;一个反直觉的发现&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;--skip-ninja&lt;/code&gt; 配合 &lt;code&gt;--skip-ld&lt;/code&gt; 在 CI 上很香，本地千万别用。少了 link 阶段的产物，&lt;code&gt;system.img&lt;/code&gt; 不完整，烧进设备直接起不来，排查一圈才发现是编译参数的问题。&lt;/p&gt;
+&lt;h2&gt;小结&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;ccache 值得开，但一定要配 &lt;code&gt;CCACHE_BASEDIR&lt;/code&gt; 和 &lt;code&gt;CCACHE_NOHASHDIR&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;-j&lt;/code&gt; 开到核数就行，再大只会让 OOM 来得更快&lt;/li&gt;
+&lt;li&gt;日常改模块用 &lt;code&gt;mm&lt;/code&gt;，别动不动 &lt;code&gt;m&lt;/code&gt; 全量&lt;/li&gt;
+&lt;/ul&gt;
+</content:encoded></item><item><title>看懂 SELinux avc denied：从一条报错到根因</title><link>http://170.106.150.172/posts/selinux-avc-denied/</link><guid isPermaLink="true">http://170.106.150.172/posts/selinux-avc-denied/</guid><description>日志里刷屏的 avc: denied 到底在说什么？这篇用一条真实报错走一遍完整的排查路径。</description><pubDate>Mon, 12 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;刚接触系统层的时候，最怕的就是 &lt;code&gt;logcat&lt;/code&gt; 里刷屏的这行：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;avc: denied { read } for pid=1234 comm=&quot;system_server&quot; name=&quot;u:object_r:foo_prop:s0&quot; dev=&quot;tmpfs&quot; ino=5678 scontext=u:r:system_server:s0 tcontext=u:object_r:foo_prop:s0 tclass=file permissive=0
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2&gt;怎么读这条日志&lt;/h2&gt;
+&lt;p&gt;拆开看其实是五个问题：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;谁&lt;/strong&gt;在访问 —— &lt;code&gt;scontext=u:r:system_server:s0&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;想干什么&lt;/strong&gt; —— &lt;code&gt;denied { read }&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;访问什么&lt;/strong&gt; —— &lt;code&gt;tcontext=u:object_r:foo_prop:s0&lt;/code&gt;，&lt;code&gt;tclass=file&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;是否拦截&lt;/strong&gt; —— &lt;code&gt;permissive=0&lt;/code&gt; 表示真的拦了&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;哪个进程&lt;/strong&gt; —— &lt;code&gt;pid=1234 comm=&quot;system_server&quot;&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;把这五个凑起来就是 policy 里缺的一行：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;allow system_server foo_prop:file read;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2&gt;别急着加 allow&lt;/h2&gt;
+&lt;p&gt;九十的坑在于，加了 &lt;code&gt;allow&lt;/code&gt; 反而把问题藏起来。先问三个问题：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;这个文件本来就该 system_server 读吗？&lt;/li&gt;
+&lt;li&gt;是不是该用 &lt;code&gt;foo_prop&lt;/code&gt; 这个类型，还是说它本来应该是一个 &lt;code&gt;vendor_&lt;/code&gt; 前缀的类型？&lt;/li&gt;
+&lt;li&gt;有没有现成的 &lt;code&gt;neverallow&lt;/code&gt; 规则已经禁止这种写法？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;code&gt;neverallow&lt;/code&gt; 是编译期检查，如果加完 &lt;code&gt;allow&lt;/code&gt; 编译直接报错，说明设计上就不允许这么干，得改的是标签归属，不是 policy。&lt;/p&gt;
+&lt;h2&gt;定位标签归属&lt;/h2&gt;
+&lt;p&gt;想知道某个文件被打上了什么标签：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;adb shell ls -Z /system/etc/foo.conf
+# u:object_r:system_file:s0 /system/etc/foo.conf
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;想看某个类型在哪些地方被使用：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;grep -rn &quot;foo_prop&quot; system/sepolicy/
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2&gt;临时验证用 permissive&lt;/h2&gt;
+&lt;p&gt;实在不确定是不是 SELinux 的问题，可以先把它设成 permissive 验证现象是否消失：&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;adb shell setenforce 0
+# 复现问题
+adb shell setenforce 1
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;只用来验证假设，绝对不能带着这个状态出货。&lt;/p&gt;
+&lt;h2&gt;小结&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;avc: denied&lt;/code&gt; 不可怕，怕的是不看上下文直接 &lt;code&gt;allow&lt;/code&gt;。记住 &lt;code&gt;scontext / tcontext / tclass / permission&lt;/code&gt; 四件套，再回头确认「这个访问本身合不合理」，大部分问题都能收敛。&lt;/p&gt;
+</content:encoded></item><item><title>用 Obsidian 记了一年技术笔记，我最后留下这几个习惯</title><link>http://170.106.150.172/posts/obsidian-one-year/</link><guid isPermaLink="true">http://170.106.150.172/posts/obsidian-one-year/</guid><description>工具换来换去，真正留下来的其实只有很朴素的三件事：当天就写、只写自己的话、每周翻一次。</description><pubDate>Mon, 05 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;去年开始用 Obsidian 记工作笔记，中间折腾过各种插件、模板、双链体系，也试过 Logseq、Notion。一年下来，插件卸载得只剩两个，习惯倒是稳定了几个。&lt;/p&gt;
+&lt;h2&gt;一、当天就写，哪怕只有三行&lt;/h2&gt;
+&lt;p&gt;技术笔记最大的敌人不是不会写，是「等有空再整理」。等有空的时候，当时为什么这么改、报错长什么样，全忘了。&lt;/p&gt;
+&lt;p&gt;我现在的做法很简单：遇到问题当天在 &lt;code&gt;解BUG知识库/&lt;/code&gt; 下建一个文件，只写三样东西：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;现象（贴原始日志）&lt;/li&gt;
+&lt;li&gt;根因（一句话）&lt;/li&gt;
+&lt;li&gt;改法（贴 diff 或关键代码）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;不求完整，求当天。&lt;/p&gt;
+&lt;h2&gt;二、只写自己的话&lt;/h2&gt;
+&lt;p&gt;抄官方文档没有意义，文档比我写得全。笔记里我尽量只保留两类内容：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;文档里没说、但踩坑时发现的（比如某个版本的行为变化）&lt;/li&gt;
+&lt;li&gt;我当时的判断和取舍&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;判断才是笔记的价值，事实查文档就行了。&lt;/p&gt;
+&lt;h2&gt;三、每周翻一次，别让笔记变垃圾场&lt;/h2&gt;
+&lt;p&gt;不做复盘的话，笔记会以每周几十篇的速度堆积，最后连自己都不想打开。&lt;/p&gt;
+&lt;p&gt;周末花十分钟，把这一周的笔记过一遍：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;能合并的合并&lt;/li&gt;
+&lt;li&gt;过时的删掉&lt;/li&gt;
+&lt;li&gt;值得深挖的立个 flag&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;插件我留了哪两个&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Templater&lt;/strong&gt; —— 新建笔记自动套模板（日期、标签、状态）&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;QuickAdd&lt;/strong&gt; —— 一个快捷键记速记，丢进 inbox 周末再归位&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;其他诸如看板、日历、图表，试过，但对写代码的人用处不大。&lt;/p&gt;
+&lt;h2&gt;写在最后&lt;/h2&gt;
+&lt;p&gt;工具是次要的。真正让笔记有用的是「写得够及时」和「翻了够多次」，这两件事换什么软件都替代不了。&lt;/p&gt;
+</content:encoded></item></channel></rss>
