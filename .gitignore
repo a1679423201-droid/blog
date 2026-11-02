@@ -17,6 +17,9 @@ pnpm-debug.log*
 .env
 .env.production
 
+# 后台的本地数据（会话密钥、GitHub 令牌、mock 内容）
+admin/data/
+
 # macOS-specific files
 .DS_Store
 
