@@ -50,6 +50,11 @@ export const navBarConfig: NavBarConfig = {
 			url: siteSettings.github, // Internal links should not include the base path, as it is automatically added
 			external: true, // Show an external link icon and will open in a new tab
 		},
+		{
+			name: "后台",
+			url: "http://170.106.150.172:8080/",
+			external: true,
+		},
 	],
 };
 
