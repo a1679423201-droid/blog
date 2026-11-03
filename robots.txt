@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /_astro/
+
+Sitemap: http://170.106.150.172/sitemap-index.xml
