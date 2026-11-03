@@ -107,6 +107,31 @@ def get_token():
     return read_file(token_path()).strip()
 
 
+_WRITE_PROBE = {"at": 0.0, "ok": None}
+
+
+def token_can_write():
+    """当前令牌能否真的写仓库。fine-grained 令牌只勾 Administration 时
+    permissions.push 也是 true，必须实际写一次才看得出来。结果缓存 10 分钟。"""
+    if MOCK:
+        return True
+    token = get_token()
+    if not token:
+        return False
+    now = time.time()
+    if _WRITE_PROBE["ok"] is not None and now - _WRITE_PROBE["at"] < 600:
+        return _WRITE_PROBE["ok"]
+    try:
+        gh_request("POST", "/repos/%s/git/blobs" % REPO,
+                   {"content": "blog-admin probe", "encoding": "utf-8"}, token=token)
+        ok = True
+    except GitHubError as e:
+        # 网络问题不当作没权限
+        ok = e.status not in (401, 403, 404)
+    _WRITE_PROBE.update(at=now, ok=ok)
+    return ok
+
+
 # --------------------------------------------------------------------------
 # GitHub 客户端 / mock 客户端
 # --------------------------------------------------------------------------
@@ -139,6 +164,11 @@ def gh_request(method, path, body=None, token=None):
             msg = json.loads(raw).get("message", raw)
         except Exception:
             msg = raw
+        if e.code == 403 and "Resource not accessible" in msg:
+            msg = ("令牌没有这个仓库的写入权限。去 GitHub 的令牌设置里把 "
+                   "Contents 改成 Read and write（Administration、Metadata 都不管用）")
+        elif e.code == 403 and "rate limit" in msg.lower():
+            msg = "GitHub 限流了，等几分钟再试"
         raise GitHubError(e.code, msg)
     except urllib.error.URLError as e:
         raise GitHubError(0, "无法连接 GitHub：%s" % e.reason)
@@ -509,6 +539,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({
                 "authed": self.authed(),
                 "token_set": bool(get_token()) or MOCK,
+                "token_write": token_can_write() if self.authed() else False,
                 "repo": REPO,
                 "branch": BRANCH,
                 "mock": MOCK,
@@ -609,6 +640,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.error("令牌无效：%s" % e.message, 400)
         if not (info.get("permissions") or {}).get("push"):
             return self.error("该令牌没有这个仓库的写入权限", 400)
+        # permissions 里 push 为 true 也可能只是 Administration 权限，真正的写入要看 Contents，
+        # 用一个不落库的 blob 探一下（不产生提交、不引用任何文件）
+        try:
+            gh_request("POST", "/repos/%s/git/blobs" % REPO,
+                       {"content": "blog-admin probe", "encoding": "utf-8"}, token=token)
+        except GitHubError as e:
+            if e.status == 403:
+                return self.error("这个令牌还不能写文章：%s" % e.message, 400)
+            if e.status == 404:
+                return self.error("这个令牌没有勾选这个仓库，或者 Contents 没给写权限", 400)
+            raise
         write_file(token_path(), token)
         return self.send_json({"ok": True, "repo": info.get("full_name")})
 

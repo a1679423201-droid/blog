@@ -240,6 +240,7 @@
     const main = $("#main");
     const drafts = S.posts.filter((p) => p.draft).length;
     const tokenWarn = !S.me.token_set;
+    const writeWarn = S.me.token_set && S.me.token_write === false;
 
     main.innerHTML =
       '<div class="topbar"><h2>文章</h2>' +
@@ -251,6 +252,10 @@
         ? '<div class="notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"/></svg>' +
           '<span>还没有配置 GitHub 令牌，保存文章会失败。</span><span class="spacer"></span>' +
           '<button class="btn sm" data-view="settings">去配置</button></div>'
+        : writeWarn
+        ? '<div class="notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01" stroke-linecap="round"/></svg>' +
+          '<span>令牌缺 Contents 写权限，保存会失败。</span><span class="spacer"></span>' +
+          '<button class="btn sm" data-view="settings">去设置</button></div>'
         : "") +
       '<div class="list-tools">' +
       '<div class="search">' + ICON.search +
@@ -858,7 +863,11 @@
         '<p class="sub">后台通过 GitHub 接口读写文章，需要你授权一次。填好之后这个页面就能正常读取站点信息了。</p></div>') +
       '<div class="settings-card" style="margin-top:20px"><h3>GitHub 令牌</h3>' +
       '<p class="sub">' +
-      (S.me.token_set ? "已配置。更换的话，粘贴新的令牌即可。" : "还没有配置。保存文章需要它。") +
+      (S.me.token_set
+        ? (S.me.token_write === false
+            ? "令牌已填，但缺 Contents 写权限，现在保存会失败。去 GitHub 编辑这个令牌，权限改成 Read and write 再回来粘贴一次。"
+            : "已配置，写入正常。更换的话，粘贴新的令牌即可。")
+        : "还没有配置。保存文章需要它。") +
       "</p>" +
       '<div class="field"><label>Fine-grained token <span class="hint">只需要这一个仓库的 Contents 读写</span></label>' +
       '<input type="password" id="gh-token" placeholder="github_pat_…" autocomplete="off"></div>' +
