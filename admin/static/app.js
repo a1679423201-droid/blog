@@ -865,14 +865,15 @@
       '<p class="sub">' +
       (S.me.token_set
         ? (S.me.token_write === false
-            ? "令牌已填，但缺 Contents 写权限，现在保存会失败。去 GitHub 编辑这个令牌，权限改成 Read and write 再回来粘贴一次。"
+            ? "令牌已填，但缺 Contents 写权限，现在保存会失败。去 GitHub 点 Edit 打开这个令牌，把 Contents 改成 Read and write，回来点「重新检测」。"
             : "已配置，写入正常。更换的话，粘贴新的令牌即可。")
         : "还没有配置。保存文章需要它。") +
       "</p>" +
       '<div class="field"><label>Fine-grained token <span class="hint">只需要这一个仓库的 Contents 读写</span></label>' +
       '<input type="password" id="gh-token" placeholder="github_pat_…" autocomplete="off"></div>' +
       '<div class="settings-actions"><button class="btn" id="save-token">保存令牌</button>' +
-      '<a class="btn ghost" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">去创建一个</a></div>' +
+      (S.me.token_set ? '<button class="btn ghost" id="recheck-token">重新检测</button>' : "") +
+      '<a class="btn ghost" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">去令牌设置</a></div>' +
       '<p class="sub" style="margin:16px 0 0">仓库：<code>' + esc(S.me.repo) + "</code> · 分支：<code>" + esc(S.me.branch) + "</code></p>" +
       "</div>";
 
@@ -903,10 +904,25 @@
         toast("正在验证…");
         await api("/api/token", { method: "POST", body: { token: t } });
         S.me.token_set = true;
+        S.me.token_write = true;
         $("#gh-token").value = "";
         toast("令牌已保存");
         await loadPosts();
         goList();
+      } catch (ex) {
+        toast(ex.message, true);
+      }
+    });
+
+    const recheck = $("#recheck-token");
+    if (recheck) recheck.addEventListener("click", async () => {
+      try {
+        toast("正在检测…");
+        const me = await api("/api/me?recheck=1", { noReload: true });
+        S.me = me;
+        toast(me.token_write ? "写入正常，可以发布文章了" : "还是写不进去，去 GitHub 改 Contents 权限", !me.token_write);
+        if (me.token_write) await loadPosts();
+        renderSettings();
       } catch (ex) {
         toast(ex.message, true);
       }

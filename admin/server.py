@@ -536,6 +536,8 @@ class Handler(BaseHTTPRequestHandler):
     def api_get(self, path):
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         if path == "/api/me":
+            if (q.get("recheck") or [""])[0] == "1":
+                _WRITE_PROBE.update(at=0.0, ok=None)
             return self.send_json({
                 "authed": self.authed(),
                 "token_set": bool(get_token()) or MOCK,
